@@ -14,6 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: title,
       routes: {
         '/': (_) => _LoginPage(),
@@ -62,18 +63,35 @@ class __LoginPageState extends State<_LoginPage> {
                   });
                 },
               ),
+              Container(
+                padding: EdgeInsets.all(8),
+                child: Text(infoText),
+              ),
               SizedBox(height: 48),
               Container(
                 width: double.infinity,
                 child: ElevatedButton(
                   child: Text('ログイン'),
                   onPressed: () async {
-                    final FirebaseAuth auth = FirebaseAuth.instance;
-                    final result = await auth.signInWithEmailAndPassword(
-                      email: email,
-                      password: password,
-                    );
-                    await Navigator.of(context).pushReplacementNamed('/mypage');
+                    try {
+                      final FirebaseAuth auth = FirebaseAuth.instance;
+                      final UserCredential userCredential =
+                          await auth.signInWithEmailAndPassword(
+                        email: email,
+                        password: password,
+                      );
+                      print(userCredential);
+                      if (userCredential.user == null) {
+                        throw Exception('ログインに失敗しました');
+                      }
+                      await Navigator.of(context)
+                          .pushReplacementNamed('/mypage');
+                    } catch (e) {
+                      print(e);
+                      setState(() {
+                        infoText = "ログインに失敗しました：${e.message}";
+                      });
+                    }
                   },
                 ),
               ),
@@ -85,7 +103,7 @@ class __LoginPageState extends State<_LoginPage> {
                   onPressed: () async {
                     try {
                       final FirebaseAuth auth = FirebaseAuth.instance;
-                      final UserCredential result =
+                      final UserCredential userCredential =
                           await auth.createUserWithEmailAndPassword(
                         email: email,
                         password: password,
@@ -93,7 +111,9 @@ class __LoginPageState extends State<_LoginPage> {
                       await Navigator.of(context)
                           .pushReplacementNamed('/mypage');
                     } catch (e) {
-                      print(e);
+                      setState(() {
+                        infoText = "登録に失敗しました：${e.message}";
+                      });
                     }
                   },
                 ),
