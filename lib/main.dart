@@ -108,6 +108,7 @@ class __LoginPageState extends State<_LoginPage> {
 }
 
 class _MyPage extends StatelessWidget {
+  final FirebaseAuth auth = FirebaseAuth.instance;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -125,16 +126,63 @@ class _MyPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          Card(
-            child: ListTile(
-              title: Text('MainTitle'),
-              subtitle: Text('SubTitle'),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              title: Text('MainTitle'),
-              subtitle: Text('SubTitle'),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(auth.currentUser.uid)
+                  .collection('transaction')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  final List<DocumentSnapshot> documents = snapshot.data.docs;
+                  return ListView(
+                    children: documents.map((document) {
+                      return Card(
+                        child: ListTile(
+                          title: Text(document['word']),
+                          subtitle: Text(document['meaning']),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AlertDialog(
+                                    title: Text(document['word'] + 'を削除します'),
+                                    content: Text('削除してよいですか？'),
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: Text('Cancel')),
+                                      TextButton(
+                                          onPressed: () async {
+                                            await FirebaseFirestore.instance
+                                                .collection('users')
+                                                .doc(auth.currentUser.uid)
+                                                .collection('transaction')
+                                                .doc(document.id)
+                                                .delete();
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: Text('OK')),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                }
+                return Center(
+                  child: Text('アイテムを追加しましょう！'),
+                );
+              },
             ),
           ),
         ],
@@ -161,7 +209,6 @@ class __AddWordPageState extends State<_AddWordPage> {
 
   @override
   Widget build(BuildContext context) {
-    // print(auth.currentUser.uid);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Word'),
