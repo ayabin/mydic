@@ -18,7 +18,6 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (_) => _LoginPage(),
         '/mypage': (_) => _MyPage(),
-        '/addPage': (_) => _AddWordPage(),
       },
     );
   }
@@ -132,47 +131,58 @@ class _MyPage extends StatelessWidget {
                   .collection('users')
                   .doc(auth.currentUser.uid)
                   .collection('transaction')
+                  .orderBy('date', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
                   final List<DocumentSnapshot> documents = snapshot.data.docs;
                   return ListView(
                     children: documents.map((document) {
-                      return Card(
-                        child: ListTile(
-                          title: Text(document['word']),
-                          subtitle: Text(document['meaning']),
-                          trailing: IconButton(
-                            icon: Icon(Icons.delete),
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (BuildContext context) {
-                                  return AlertDialog(
-                                    title: Text(document['word'] + 'を削除します'),
-                                    content: Text('削除してよいですか？'),
-                                    actions: [
-                                      TextButton(
-                                          onPressed: () {
-                                            Navigator.of(context).pop();
-                                          },
-                                          child: Text('Cancel')),
-                                      TextButton(
-                                          onPressed: () async {
-                                            await FirebaseFirestore.instance
-                                                .collection('users')
-                                                .doc(auth.currentUser.uid)
-                                                .collection('transaction')
-                                                .doc(document.id)
-                                                .delete();
-                                            Navigator.of(context).pop();
-                                          },
-                                          child: Text('OK')),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (BuildContext context) =>
+                                  _AddWordPage(document),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          child: ListTile(
+                            title: Text(document['word']),
+                            subtitle: Text(document['meaning']),
+                            trailing: IconButton(
+                              icon: Icon(Icons.delete),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return AlertDialog(
+                                      title: Text(document['word'] + 'を削除します'),
+                                      content: Text('削除してよいですか？'),
+                                      actions: [
+                                        TextButton(
+                                            onPressed: () {
+                                              Navigator.of(context).pop();
+                                            },
+                                            child: Text('Cancel')),
+                                        TextButton(
+                                            onPressed: () async {
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(auth.currentUser.uid)
+                                                  .collection('transaction')
+                                                  .doc(document.id)
+                                                  .delete();
+                                              Navigator.of(context).pop();
+                                            },
+                                            child: Text('OK')),
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
+                            ),
                           ),
                         ),
                       );
@@ -189,7 +199,11 @@ class _MyPage extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(context).pushNamed('/addPage');
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (BuildContext context) => _AddWordPage(null),
+            ),
+          );
         },
         child: Icon(Icons.add),
       ),
@@ -198,6 +212,9 @@ class _MyPage extends StatelessWidget {
 }
 
 class _AddWordPage extends StatefulWidget {
+  final DocumentSnapshot document;
+  _AddWordPage(this.document);
+
   @override
   __AddWordPageState createState() => __AddWordPageState();
 }
@@ -205,10 +222,23 @@ class _AddWordPage extends StatefulWidget {
 class __AddWordPageState extends State<_AddWordPage> {
   String word = '';
   String meaning = '';
+  String uid;
+  String docId;
   FirebaseAuth auth = FirebaseAuth.instance;
+  @override
+  void initState() {
+    super.initState();
+    uid = auth.currentUser.uid;
+    docId = null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.document != null) {
+      word = widget.document['word'];
+      meaning = widget.document['meaning'];
+      docId = widget.document.id;
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Word'),
@@ -219,6 +249,7 @@ class __AddWordPageState extends State<_AddWordPage> {
           child: Column(
             children: [
               TextFormField(
+                initialValue: word,
                 decoration: InputDecoration(labelText: 'Word'),
                 onChanged: (String value) {
                   word = value;
@@ -226,6 +257,7 @@ class __AddWordPageState extends State<_AddWordPage> {
               ),
               SizedBox(height: 8),
               TextFormField(
+                initialValue: meaning,
                 decoration: InputDecoration(labelText: 'Meaning'),
                 onChanged: (String value) {
                   meaning = value;
@@ -240,15 +272,15 @@ class __AddWordPageState extends State<_AddWordPage> {
                       final date = DateTime.now().toLocal().toIso8601String();
                       await FirebaseFirestore.instance
                           .collection('users')
-                          .doc(auth.currentUser.uid)
+                          .doc(uid)
                           .collection('transaction')
-                          .doc()
+                          .doc(docId)
                           .set({
                         'word': word,
                         'meaning': meaning,
                         'date': date,
                       });
-                      await Navigator.of(context).pushNamed('/mypage');
+                      Navigator.of(context).pop();
                     } catch (e) {
                       print(e);
                     }
