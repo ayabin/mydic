@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-const String title = 'My Dic';
+const String title = 'MyDic';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -14,22 +15,22 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: title,
       routes: {
-        '/': (_) => _LoginPage(),
-        '/mypage': (_) => _MyPage(),
-        '/addPage': (_) => _AddWordPage(),
+        '/': (_) => LoginPage(),
+        '/mypage': (_) => MyPage(),
       },
     );
   }
 }
 
-class _LoginPage extends StatefulWidget {
+class LoginPage extends StatefulWidget {
   @override
-  __LoginPageState createState() => __LoginPageState();
+  _LoginPageState createState() => _LoginPageState();
 }
 
-class __LoginPageState extends State<_LoginPage> {
+class _LoginPageState extends State<LoginPage> {
   String infoText = '';
   String email = '';
   String password = '';
@@ -42,15 +43,13 @@ class __LoginPageState extends State<_LoginPage> {
       ),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(40),
+          padding: EdgeInsets.all(40),
           child: Column(
             children: [
               TextFormField(
                 decoration: InputDecoration(labelText: 'email'),
                 onChanged: (String value) {
-                  setState(() {
-                    email = value;
-                  });
+                  email = value;
                 },
               ),
               SizedBox(height: 8),
@@ -58,10 +57,15 @@ class __LoginPageState extends State<_LoginPage> {
                 decoration: InputDecoration(labelText: 'password'),
                 obscureText: true,
                 onChanged: (String value) {
-                  setState(() {
-                    password = value;
-                  });
+                  password = value;
                 },
+              ),
+              Container(
+                padding: EdgeInsets.all(8),
+                child: Text(
+                  infoText,
+                  style: TextStyle(color: Colors.red),
+                ),
               ),
               SizedBox(height: 48),
               Container(
@@ -69,12 +73,19 @@ class __LoginPageState extends State<_LoginPage> {
                 child: ElevatedButton(
                   child: Text('ログイン'),
                   onPressed: () async {
-                    final FirebaseAuth auth = FirebaseAuth.instance;
-                    final result = await auth.signInWithEmailAndPassword(
-                      email: email,
-                      password: password,
-                    );
-                    await Navigator.of(context).pushReplacementNamed('/mypage');
+                    try {
+                      final FirebaseAuth auth = FirebaseAuth.instance;
+                      final UserCredential userCredential =
+                          await auth.signInWithEmailAndPassword(
+                              email: email, password: password);
+                      await Navigator.of(context)
+                          .pushReplacementNamed('/mypage');
+                    } catch (e) {
+                      setState(() {
+                        infoText = e.message;
+                      });
+                      print("エラー：${e.message}");
+                    }
                   },
                 ),
               ),
@@ -86,15 +97,16 @@ class __LoginPageState extends State<_LoginPage> {
                   onPressed: () async {
                     try {
                       final FirebaseAuth auth = FirebaseAuth.instance;
-                      final UserCredential result =
+                      final UserCredential userCredential =
                           await auth.createUserWithEmailAndPassword(
-                        email: email,
-                        password: password,
-                      );
+                              email: email, password: password);
                       await Navigator.of(context)
                           .pushReplacementNamed('/mypage');
                     } catch (e) {
-                      print(e);
+                      setState(() {
+                        infoText = e.message;
+                      });
+                      print("エラー：${e.message}");
                     }
                   },
                 ),
@@ -107,7 +119,9 @@ class __LoginPageState extends State<_LoginPage> {
   }
 }
 
-class _MyPage extends StatelessWidget {
+class MyPage extends StatelessWidget {
+  final FirebaseAuth auth = FirebaseAuth.instance;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -117,31 +131,101 @@ class _MyPage extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.exit_to_app),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              await Navigator.of(context).pushReplacementNamed('/');
+              try {
+                await FirebaseAuth.instance.signOut();
+                await Navigator.of(context).pushReplacementNamed('/');
+              } catch (e) {
+                print("エラー：${e.message}");
+              }
             },
           ),
         ],
       ),
       body: Column(
         children: [
-          Card(
-            child: ListTile(
-              title: Text('MainTitle'),
-              subtitle: Text('SubTitle'),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              title: Text('MainTitle'),
-              subtitle: Text('SubTitle'),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(auth.currentUser.uid)
+                  .collection('transaction')
+                  .orderBy('date', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  final List<DocumentSnapshot> documents = snapshot.data.docs;
+                  return ListView(
+                    children: documents.map((document) {
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (BuildContext context) =>
+                                  AddWordPage(document),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          child: ListTile(
+                            title: Text(document['word']),
+                            subtitle: Text(document['meaning']),
+                            trailing: IconButton(
+                              icon: Icon(Icons.delete),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return AlertDialog(
+                                      title: Text(document['word'] + 'を削除します'),
+                                      content: Text('削除してよいですか？'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () async {
+                                            try {
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(auth.currentUser.uid)
+                                                  .collection('transaction')
+                                                  .doc(document.id)
+                                                  .delete();
+                                              Navigator.of(context).pop();
+                                            } catch (e) {
+                                              print("エラー：${e.message}");
+                                            }
+                                          },
+                                          child: Text('OK'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                }
+                return Center(child: CircularProgressIndicator());
+              },
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(context).pushNamed('/addPage');
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (BuildContext context) => AddWordPage(null),
+            ),
+          );
         },
         child: Icon(Icons.add),
       ),
@@ -149,29 +233,45 @@ class _MyPage extends StatelessWidget {
   }
 }
 
-class _AddWordPage extends StatefulWidget {
+class AddWordPage extends StatefulWidget {
+  final DocumentSnapshot document;
+  AddWordPage(this.document);
+
   @override
-  __AddWordPageState createState() => __AddWordPageState();
+  _AddWordPageState createState() => _AddWordPageState();
 }
 
-class __AddWordPageState extends State<_AddWordPage> {
+class _AddWordPageState extends State<AddWordPage> {
   String word = '';
   String meaning = '';
+  String uid;
+  String docId;
   FirebaseAuth auth = FirebaseAuth.instance;
+  @override
+  void initState() {
+    super.initState();
+    uid = auth.currentUser.uid;
+    docId = null;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // print(auth.currentUser.uid);
+    if (widget.document != null) {
+      word = widget.document['word'];
+      meaning = widget.document['meaning'];
+      docId = widget.document.id;
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Word'),
       ),
       body: Center(
         child: Padding(
-          padding: EdgeInsets.all(40),
+          padding: const EdgeInsets.all(40),
           child: Column(
             children: [
               TextFormField(
+                initialValue: word,
                 decoration: InputDecoration(labelText: 'Word'),
                 onChanged: (String value) {
                   word = value;
@@ -179,6 +279,7 @@ class __AddWordPageState extends State<_AddWordPage> {
               ),
               SizedBox(height: 8),
               TextFormField(
+                initialValue: meaning,
                 decoration: InputDecoration(labelText: 'Meaning'),
                 onChanged: (String value) {
                   meaning = value;
@@ -193,17 +294,17 @@ class __AddWordPageState extends State<_AddWordPage> {
                       final date = DateTime.now().toLocal().toIso8601String();
                       await FirebaseFirestore.instance
                           .collection('users')
-                          .doc(auth.currentUser.uid)
+                          .doc(uid)
                           .collection('transaction')
-                          .doc()
+                          .doc(docId)
                           .set({
                         'word': word,
                         'meaning': meaning,
                         'date': date,
                       });
-                      await Navigator.of(context).pushNamed('/mypage');
+                      Navigator.of(context).pop();
                     } catch (e) {
-                      print(e);
+                      print("エラー：${e.message}");
                     }
                   },
                   child: Text('登録'),
