@@ -55,6 +55,7 @@ class _LoginPageState extends State<LoginPage> {
               SizedBox(height: 8),
               TextFormField(
                 decoration: InputDecoration(labelText: 'password'),
+                obscureText: true,
                 onChanged: (String value) {
                   password = value;
                 },
